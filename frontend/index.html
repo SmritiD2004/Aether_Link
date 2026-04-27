@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Resilient Response – Help When Networks Fail</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS + JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        #map { height: 380px; border-radius: 1rem; transition: all 0.2s; background-color: #f0f0f0; }
+        .toast { transition: all 0.3s ease; z-index: 9999; }
+        .step-card:hover { transform: translateY(-2px); transition: transform 0.2s; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-gray-100 font-sans">
+
+    <!-- Header / Navigation -->
+    <div class="sticky top-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-broadcast-tower text-2xl text-red-600"></i>
+                <h1 class="text-xl md:text-2xl font-bold text-gray-800">Resilient<span class="text-red-600">Response</span></h1>
+            </div>
+            <div class="flex gap-3">
+                <span id="onlineBadge" class="px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 shadow-sm"><i class="fas fa-wifi mr-1"></i>Online</span>
+                <button id="syncBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-full text-sm transition flex items-center gap-1"><i class="fas fa-sync-alt"></i> Sync</button>
+                <button id="resetBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-full text-sm transition flex items-center gap-1"><i class="fas fa-trash-alt"></i> Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="text-center mb-8">
+            <h2 class="text-3xl md:text-4xl font-extrabold text-gray-800">📢 Get Help When Every Second Counts</h2>
+            <p class="text-gray-600 mt-2 max-w-2xl mx-auto">Even when the internet fails, your emergency request reaches responders. Click the map or search an address – we'll do the rest.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white rounded-xl p-4 shadow-md step-card text-center">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2"><i class="fas fa-map-marker-alt text-red-600 text-xl"></i></div>
+                <h3 class="font-bold">1. Pin your location</h3>
+                <p class="text-sm text-gray-600">Search an address or click on the map.</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-md step-card text-center">
+                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2"><i class="fas fa-edit text-blue-600 text-xl"></i></div>
+                <h3 class="font-bold">2. Describe emergency</h3>
+                <p class="text-sm text-gray-600">Tell us what happened – fire, medical, building collapse.</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-md step-card text-center">
+                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2"><i class="fas fa-check-circle text-green-600 text-xl"></i></div>
+                <h3 class="font-bold">3. Get assigned a responder</h3>
+                <p class="text-sm text-gray-600">Nearest police, fire, medical or NDRF team will be notified.</p>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="space-y-6">
+                <!-- Address Search Card -->
+                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center gap-2 border-b pb-3 mb-4">
+                        <i class="fas fa-search-location text-indigo-500 text-xl"></i>
+                        <h2 class="text-2xl font-semibold text-gray-800">Search Address</h2>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="addressInput" placeholder="e.g., KLS Gogte Institute of Technology, Belgaum" class="flex-1 border border-gray-300 rounded-lg p-2 text-sm">
+                        <button id="searchAddressBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-1"><i class="fas fa-search"></i> Search</button>
+                    </div>
+                    <div id="addressResult" class="text-xs text-gray-500 mt-2"></div>
+                </div>
+
+                <!-- Main Request Form -->
+                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center gap-2 border-b pb-3 mb-4">
+                        <i class="fas fa-hands-helping text-red-500 text-xl"></i>
+                        <h2 class="text-2xl font-semibold text-gray-800">Request Help</h2>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Latitude</label>
+                                <input type="text" id="lat" placeholder="Click map or search" readonly class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-lg p-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Longitude</label>
+                                <input type="text" id="lng" placeholder="Click map or search" readonly class="mt-1 block w-full bg-gray-50 border border-gray-300 rounded-lg p-2 text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Describe the emergency</label>
+                            <textarea id="desc" rows="3" placeholder="e.g., Building collapse near metro station, people trapped..." class="mt-1 block w-full border border-gray-300 rounded-lg p-2"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Priority</label>
+                            <select id="priority" class="mt-1 block w-full border border-gray-300 rounded-lg p-2 bg-white">
+                                <option value="1">🟢 Normal – Non-urgent</option>
+                                <option value="2">🟠 High – Urgent, needs quick response</option>
+                                <option value="3">🔴 Critical – Life-threatening emergency</option>
+                            </select>
+                        </div>
+                        <button id="submitReqBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2"><i class="fas fa-paper-plane"></i> Submit Emergency Request</button>
+                        <div id="reqResult" class="text-sm text-center text-gray-500"></div>
+                    </div>
+                </div>
+
+                <!-- SMS Simulation Card -->
+                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                    <div class="flex items-center gap-2 border-b pb-3 mb-4">
+                        <i class="fas fa-sms text-blue-500 text-xl"></i>
+                        <h2 class="text-2xl font-semibold text-gray-800">SMS Fallback</h2>
+                        <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full">No internet? Use SMS</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">If you have no data, send an SMS to our emergency number. <strong>Simulate here:</strong></p>
+                    <input type="text" id="smsInput" placeholder="HELP 28.6139,77.2090 Building collapse, need medical aid" class="w-full border border-gray-300 rounded-lg p-2 text-sm mb-3">
+                    <button id="smsSimBtn" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-2"><i class="fas fa-envelope"></i> Simulate SMS</button>
+                    <div id="smsResult" class="text-sm text-center text-gray-500 mt-2"></div>
+                    <p class="text-xs text-gray-400 mt-3"><i class="fas fa-info-circle"></i> Format: HELP lat,lng description</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-lg p-2 border border-gray-100">
+                <div id="map"></div>
+                <p class="text-xs text-center text-gray-400 mt-2"><i class="fas fa-mouse-pointer"></i> Click on map OR search address above to set location</p>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center text-xs text-gray-400 border-t pt-4">
+            <i class="fas fa-shield-alt"></i> Resilient Response – Works offline, syncs automatically. Built for disaster coordination in low‑connectivity regions.
+        </div>
+    </main>
+
+    <script>
+        // ---------- Toast ----------
+        function showToast(message, type = 'info') {
+            const toastDiv = document.createElement('div');
+            toastDiv.className = `fixed bottom-5 right-5 bg-${type === 'success' ? 'green' : type === 'error' ? 'red' : 'blue'}-500 text-white px-4 py-2 rounded-lg shadow-lg toast text-sm z-50 flex items-center gap-2`;
+            toastDiv.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>${message}`;
+            document.body.appendChild(toastDiv);
+            setTimeout(() => toastDiv.remove(), 3000);
+        }
+
+        // ---------- localStorage initialisation ----------
+        function initLocalStorage() {
+            const defaultResponders = [
+                { id: 1, name: "Rahul Sharma", agency: "Police", lat: 28.6200, lon: 77.2100, available: true },
+                { id: 2, name: "Priya Mehta", agency: "Medical", lat: 28.6130, lon: 77.2150, available: true },
+                { id: 3, name: "Amit Singh", agency: "Fire", lat: 28.6050, lon: 77.2000, available: true },
+                { id: 4, name: "NDRF Team Alpha", agency: "NDRF", lat: 28.6300, lon: 77.2200, available: true },
+                { id: 5, name: "Sneha Reddy", agency: "Medical", lat: 28.5900, lon: 77.1950, available: true }
+            ];
+            if (!localStorage.getItem("responders")) {
+                localStorage.setItem("responders", JSON.stringify(defaultResponders));
+            }
+            if (!localStorage.getItem("incidents")) {
+                localStorage.setItem("incidents", JSON.stringify([]));
+            }
+            if (!localStorage.getItem("pendingSync")) {
+                localStorage.setItem("pendingSync", JSON.stringify([]));
+            }
+        }
+
+        function updateBadge() {
+            const badge = document.getElementById("onlineBadge");
+            const pending = JSON.parse(localStorage.getItem("pendingSync") || "[]");
+            const isOnline = navigator.onLine;
+            if (isOnline) {
+                badge.innerHTML = `<i class="fas fa-wifi mr-1"></i>Online ${pending.length ? `(${pending.length} to sync)` : ''}`;
+                badge.className = "px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 shadow-sm";
+            } else {
+                badge.innerHTML = `<i class="fas fa-plug mr-1"></i>Offline ${pending.length ? `(${pending.length} pending)` : ''}`;
+                badge.className = "px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 text-red-700 shadow-sm";
+            }
+        }
+
+        async function syncPendingRequests() {
+            if (!navigator.onLine) {
+                showToast("No internet. Cannot sync.", "error");
+                return;
+            }
+            let pending = JSON.parse(localStorage.getItem("pendingSync") || "[]");
+            if (pending.length === 0) {
+                showToast("Nothing to sync.", "info");
+                return;
+            }
+            let incidents = JSON.parse(localStorage.getItem("incidents") || "[]");
+            let syncedCount = 0;
+            for (let req of pending) {
+                if (!incidents.some(i => i.id === req.id)) {
+                    incidents.push(req);
+                    syncedCount++;
+                }
+            }
+            localStorage.setItem("incidents", JSON.stringify(incidents));
+            localStorage.setItem("pendingSync", JSON.stringify([]));
+            updateBadge();
+            showToast(`Synced ${syncedCount} request(s).`, "success");
+        }
+
+        function saveRequest(lat, lon, description, priority, source = "web") {
+            const id = Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+            const newIncident = {
+                id, lat, lon, description, priority: parseInt(priority),
+                status: "pending", createdAt: new Date().toISOString(),
+                source, assignedTo: null
+            };
+            let incidents = JSON.parse(localStorage.getItem("incidents") || "[]");
+            incidents.push(newIncident);
+            localStorage.setItem("incidents", JSON.stringify(incidents));
+
+            if (!navigator.onLine) {
+                let pending = JSON.parse(localStorage.getItem("pendingSync") || "[]");
+                pending.push(newIncident);
+                localStorage.setItem("pendingSync", JSON.stringify(pending));
+                showToast("📴 Offline: Request saved. Will sync when online.", "info");
+            } else {
+                showToast("✅ Request submitted! Agency dashboard will show it.", "success");
+            }
+            updateBadge();
+            return newIncident;
+        }
+
+        // ---------- Map and geocoding ----------
+        let map;
+        let currentMarker = null;
+
+        function initMap() {
+            map = L.map('map').setView([15.8152, 74.4879], 14);  // Centered on Belgaum / KLS GIT
+            // CartoDB Voyager – clear, readable labels, works from file://
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+            
+            map.on('click', function(e) {
+                setLocation(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        function setLocation(lat, lng) {
+            document.getElementById('lat').value = lat.toFixed(6);
+            document.getElementById('lng').value = lng.toFixed(6);
+            if (currentMarker) map.removeLayer(currentMarker);
+            currentMarker = L.marker([lat, lng]).addTo(map).bindPopup("📍 Your selected location").openPopup();
+            map.setView([lat, lng], 14);
+        }
+
+        // ========== GEOCODER: LocationIQ (requires API key) ==========
+        async function geocodeAddress(address) {
+            if (!navigator.onLine) {
+                showToast("Address search requires internet.", "error");
+                return null;
+            }
+            // 🔑 PASTE YOUR LOCATIONIQ API KEY HERE (get free from locationiq.com)
+            const API_KEY = "pk.a17fdf9d98ea53f5f2bdecc4e747ff21";  // <-- Replace with your own key if needed
+            const url = `https://us1.locationiq.com/v1/search.php?key=${API_KEY}&q=${encodeURIComponent(address)}&format=json&limit=1`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const { lat, lon, display_name } = data[0];
+                    return { lat: parseFloat(lat), lon: parseFloat(lon), displayName: display_name };
+                } else {
+                    showToast("Address not found. Try a different spelling.", "error");
+                    return null;
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Geocoding failed. Check your internet or API key.", "error");
+                return null;
+            }
+        }
+
+        // Event: address search button
+        document.getElementById("searchAddressBtn").addEventListener("click", async () => {
+            const address = document.getElementById("addressInput").value.trim();
+            if (!address) {
+                showToast("Please enter an address.", "error");
+                return;
+            }
+            const result = await geocodeAddress(address);
+            if (result) {
+                setLocation(result.lat, result.lon);
+                document.getElementById("addressResult").innerHTML = `<i class="fas fa-check-circle text-green-600"></i> ${result.displayName.substring(0, 80)}`;
+            } else {
+                document.getElementById("addressResult").innerHTML = "";
+            }
+        });
+
+        // Existing submit, SMS, sync, reset, online/offline logic
+        document.getElementById("submitReqBtn").addEventListener("click", () => {
+            const lat = parseFloat(document.getElementById("lat").value);
+            const lng = parseFloat(document.getElementById("lng").value);
+            const desc = document.getElementById("desc").value.trim();
+            const priority = document.getElementById("priority").value;
+            if (isNaN(lat) || isNaN(lng) || !desc) {
+                showToast("Please select location (click map or search) and describe emergency.", "error");
+                return;
+            }
+            saveRequest(lat, lng, desc, priority, "web");
+            document.getElementById("desc").value = "";
+            document.getElementById("reqResult").innerHTML = "<span class='text-green-600'>✓ Request sent</span>";
+            setTimeout(() => document.getElementById("reqResult").innerHTML = "", 2000);
+        });
+
+        document.getElementById("smsSimBtn").addEventListener("click", () => {
+            const raw = document.getElementById("smsInput").value.trim();
+            const regex = /^HELP\s+([+-]?\d+(?:\.\d+)?),([+-]?\d+(?:\.\d+)?)\s+(.+)$/i;
+            const match = raw.match(regex);
+            if (!match) {
+                showToast("Invalid format. Use: HELP lat,lng description", "error");
+                return;
+            }
+            const lat = parseFloat(match[1]);
+            const lng = parseFloat(match[2]);
+            const description = match[3];
+            if (isNaN(lat) || isNaN(lng)) {
+                showToast("Invalid coordinates.", "error");
+                return;
+            }
+            saveRequest(lat, lng, description, 2, "sms");
+            document.getElementById("smsInput").value = "";
+            document.getElementById("smsResult").innerHTML = "<span class='text-green-600'>SMS request created</span>";
+            setTimeout(() => document.getElementById("smsResult").innerHTML = "", 2000);
+        });
+
+        document.getElementById("syncBtn").addEventListener("click", syncPendingRequests);
+        document.getElementById("resetBtn").addEventListener("click", () => {
+            if (confirm("Reset all data? This will delete all incidents and restore mock responders.")) {
+                localStorage.clear();
+                initLocalStorage();
+                showToast("Demo data reset.", "success");
+                updateBadge();
+                location.reload();
+            }
+        });
+
+        window.addEventListener("online", () => {
+            updateBadge();
+            syncPendingRequests();
+        });
+        window.addEventListener("offline", () => updateBadge());
+
+        // Bootstrap
+        initLocalStorage();
+        initMap();
+        updateBadge();
+    </script>
+</body>
+</html>
